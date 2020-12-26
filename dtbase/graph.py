@@ -13,8 +13,8 @@ class dtbase:
         links : dict
             a map of unique link id strings onto a link object
         adj_list : defaultdict
-            a modified adjacency list mapping a node onto all parent nodes that
-            have a directed edge to it.
+            a modified adjacency list mapping a node onto all link ids that are
+            directed to it.
     """
     class node:
         """
@@ -98,11 +98,29 @@ class dtbase:
         ----------
             id : str
                 a unique short id for the node.
-            name : str
-                the full name of the node.
-            keywords : list
-                a list of keywords associated with the node
+            
+            other parameters defined in the node class
         """
         assert id and len(id) <= 5, 'id must have a length of 5 or fewer characters'
         assert id not in self.nodes and id not in self.links, f'id: {id} already exists. Please choose a unique id.'
         self.nodes[id] = self.node(name, keywords)
+
+    def add_link(self, id: str, child_id: str, parent_id: str, m1: float, m2: float, m3: float,
+            m1_memo: str = None, m2_memo: str = None, m3_memo: str = None,
+            reference: ref = None):
+        """
+        Adds a link from a parent to a child node in the graph with the given parameters.
+
+        Parameters
+        ----------
+            id : str
+                a unique short id for the link
+            
+            other parameters defined in the link class
+        """
+        assert id and len(id) <= 5, 'id must have a length of 5 or fewer characters'
+        assert id not in self.nodes and id not in self.links, f'id: {id} already exists. Please choose a unique id.'
+        assert parent_id in self.nodes, f'{parent_id} does not exist in the graph'
+        assert child_id in self.nodes, f'{child_id} does not exist in the graph'
+        self.links[id] = self.link(child_id, parent_id, m1, m2, m3, m1_memo, m2_memo, m3_memo, reference)
+        self.adj_list[child_id].append(id)
