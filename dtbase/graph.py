@@ -81,6 +81,7 @@ class dtbase:
             self.m3 = m3
             self.m3_memo = m3_memo
             self.reference = reference
+            self.weight = 0
     
     def __init__(self):
         """
@@ -124,3 +125,20 @@ class dtbase:
         assert child_id in self.nodes, f'{child_id} does not exist in the graph'
         self.links[id] = self.link(child_id, parent_id, m1, m2, m3, m1_memo, m2_memo, m3_memo, reference)
         self.adj_list[child_id].append(id)
+    
+    def calc_norm_weights(self, target_id: str):
+        """
+        Calculates the normalized weight of each link in the graph and populates the weight field for each link.
+
+        Parameters
+        ----------
+            target_id: str
+                the target child node across which the weights are normalized
+        """
+        assert len(self.adj_list[target_id]), 'there are no directed edges to the given target node in the graph'
+        Z = 0
+        # calculate Z, the normalization factor
+        for link in self.adj_list[target_id]:
+            Z += self.links[link].m1 * self.links[link].m3
+        for link in self.adj_list[target_id]:
+            self.links[link].weight = (self.links[link].m1 * self.links[link].m3) / Z
