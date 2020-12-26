@@ -42,7 +42,7 @@ class dtbase:
         """
         def __init__(self, child_id: str, parent_id: str, m1: float, m2: float, m3: float,
             m1_memo: str = None, m2_memo: str = None, m3_memo: str = None,
-            reference: ref = None):
+            reference = None):
             """
             Constructs all necessary attributes for a causal link.
 
@@ -69,7 +69,8 @@ class dtbase:
                     being the least confidence and 1 being the highest confidence.
                 m3_memo : str
                     an explanation of the reasoning behind the choice of the m3 value.
-
+                weight : float
+                    The normalized weight of the link
             """
             assert 0.0 <= m1 <= 1.0 and 0.0 <= m2 <= 1.0 and 0 <= m3 <= 1.0, 'm1, m2, and m3 must be floats between 0 and 1'
             self.child_id = child_id
@@ -108,7 +109,7 @@ class dtbase:
 
     def add_link(self, id: str, child_id: str, parent_id: str, m1: float, m2: float, m3: float,
             m1_memo: str = None, m2_memo: str = None, m3_memo: str = None,
-            reference: ref = None):
+            reference = None):
         """
         Adds a link from a parent to a child node in the graph with the given parameters.
 
@@ -126,7 +127,7 @@ class dtbase:
         self.links[id] = self.link(child_id, parent_id, m1, m2, m3, m1_memo, m2_memo, m3_memo, reference)
         self.adj_list[child_id].append(id)
     
-    def calc_norm_weights(self, target_id: str):
+    def calc_normalized_weights(self, target_id: str):
         """
         Calculates the normalized weight of each link in the graph and populates the weight field for each link.
 
@@ -136,9 +137,40 @@ class dtbase:
                 the target child node across which the weights are normalized
         """
         assert len(self.adj_list[target_id]), 'there are no directed edges to the given target node in the graph'
-        Z = 0
         # calculate Z, the normalization factor
+        Z = 0
         for link in self.adj_list[target_id]:
             Z += self.links[link].m1 * self.links[link].m3
         for link in self.adj_list[target_id]:
             self.links[link].weight = (self.links[link].m1 * self.links[link].m3) / Z
+
+    def calc_cp_arithmetic(self, target_id: str) -> dict:
+        """
+        Calculates the aggregated conditional probability for each parent node with an edge to the target node using
+        the arithmetic mean.
+
+        Parameters
+        ----------
+            target_id: str
+                the target child node across which the weights are normalized
+        """
+        p = { self.links[link].parent_id : 0.0 for link in self.adj_list[target_id] }
+        for link in self.adj_list[target_id]:
+            p[self.links[link].parent_id] += self.links[link].weight *  self.links[link].m2
+        return p
+
+    def calc_cp_geometric(self, target_id: str) -> dict:
+        """
+        Calculates the aggregated conditional probability for each parent node with an edge to the target node using
+        the geometric mean.
+
+        Parameters
+        ----------
+            target_id: str
+                the target child node across which the weights are normalized
+        """
+        p = { self.links[link].parent_id : 1.0 for link in self.adj_list[target_id] }
+        for link in self.adj_list[target_id]:
+            p[self.links[link].parent_id] *= self.links[link].weight ** self.links[link].m2
+        return p
+
