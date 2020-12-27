@@ -133,16 +133,21 @@ class dtbase:
 
         Parameters
         ----------
-            target_id: str
-                the target child node across which the weights are normalized
+            target_id : str
+                the target child node across which the weights are normalized.
         """
         assert len(self.adj_list[target_id]), 'there are no directed edges to the given target node in the graph'
-        # calculate Z, the normalization factor
-        Z = 0
-        for link in self.adj_list[target_id]:
-            Z += self.links[link].m1 * self.links[link].m3
-        for link in self.adj_list[target_id]:
-            self.links[link].weight = (self.links[link].m1 * self.links[link].m3) / Z
+        # calculate Z, the normalization factor for the weight calculation for each parent node for the
+        # given target node.
+        Z = { id : 0 for id in self.nodes }
+        for link_id in self.adj_list[target_id]:
+            link = self.links[link_id]
+            Z[link.parent_id] += link.m1 * link.m3
+
+        # calculate the normalized weight of each link
+        for link_id in self.adj_list[target_id]:
+            link = self.links[link_id]
+            link.weight = (link.m1 * link.m3) / Z[link.parent_id]
 
     def calc_cp_arithmetic(self, target_id: str) -> dict:
         """
@@ -151,12 +156,12 @@ class dtbase:
 
         Parameters
         ----------
-            target_id: str
-                the target child node across which the weights are normalized
+            target_id : str
+                the target child node across which the weights are normalized.
         """
         p = { self.links[link].parent_id : 0.0 for link in self.adj_list[target_id] }
         for link in self.adj_list[target_id]:
-            p[self.links[link].parent_id] += self.links[link].weight *  self.links[link].m2
+            p[self.links[link].parent_id] += self.links[link].weight * self.links[link].m2
         return p
 
     def calc_cp_geometric(self, target_id: str) -> dict:
@@ -166,11 +171,38 @@ class dtbase:
 
         Parameters
         ----------
-            target_id: str
-                the target child node across which the weights are normalized
+            target_id : str
+                the target child node across which the weights are normalized.
         """
         p = { self.links[link].parent_id : 1.0 for link in self.adj_list[target_id] }
         for link in self.adj_list[target_id]:
-            p[self.links[link].parent_id] *= self.links[link].weight ** self.links[link].m2
+            p[self.links[link].parent_id] *=  (self.links[link].m2 ** self.links[link].weight)
         return p
 
+    def calc_noisy_or(self, target_id: str, parent_ids: tuple, p_table: dict):
+        """
+        Calculates the noisy or approximation for P(target | p1, p2, ... for all p in parent_ids).
+        
+        Parameters
+        ----------
+            target_id : str
+                the id of the target child node.
+            parent_ids : tuple
+                a tuple of all parent nodes in a single combination.
+            p_table : dict
+                stores P(target | p) where p is a single parent node. Calculated with calc_cp_geometric
+                or calc_cp_arithmetic.
+        """
+        prod = 1
+        for parent_id in parent_ids:
+            prod *= 1 - p_table[parent_id]
+        return 1 - prod
+
+    def calc_cpt(self, target_id: str, arithmetic: bool = True) -> DataFrame:
+        cpt = dict()
+        table = self.calc_cp_arithmetic(target_id) if arithmetic else self.calc_cp_geometric(target_id)
+        for i in range(1, len(self.adj_list[target_id]) + 1):
+            for combo in combinations(self.adj_list[target_id], i):
+                c = tuple(self.links[link].parent_id for link in combo)
+                cpt[c] = self.calc_noisy_or(target_id, c, table)
+        return cpt
