@@ -245,9 +245,9 @@ class dtbase:
             file_path : str
                 the intended file path to save the model.
         """
-        assert file_path.endswith('.csv'), 'A valid .csv file path must be entered'
+        assert file_path.endswith('.csv'), 'A valid .csv file path must be provided'
         with open(file_path, 'w') as f:
-            writer = csv.writer(f, delimiter=',', quotechar='\'')
+            writer = csv.writer(f, delimiter=',', quotechar='\'', quoting=csv.QUOTE_NONNUMERIC)
             # Spreadsheet headings
             writer.writerow(['Link ID', 'Child ID', 'Child Name', 'Child Keywords',
                 'Parent ID', 'Parent Name', 'Parent Keywords'
@@ -264,6 +264,31 @@ class dtbase:
                     link.m1, link.m1_memo, 
                     link.m2, link.m2_memo, link.m3, link.m3_memo])
 
+    def import_data(self, file_path: str):
+        """
+        Imports the model data from a CSV file.
+        
+        Parameters
+        ----------
+            file_path : str
+                the intended file path to save the model.
+        """
+        assert file_path.endswith('.csv'), 'A valid .csv file path must be provided'
+        # Clear all data
+        self.adj_list.clear()
+        self.nodes.clear()
+        self.links.clear()
+        with open(file_path, 'r') as f:
+            reader = csv.reader(f, quotechar='\'', quoting=csv.QUOTE_NONNUMERIC)
+            # Spreadsheet headings
+            reader.__next__()
+            for row in reader:
+                self.add_node(row[1], row[2], row[3])
+                self.add_node(row[4], row[5], row[6])
+                self.add_link(row[0], row[1], row[4], row[11], row[13], row[15],
+                    row[12], row[14], row[16])
+                
+
     def export_cpt(self, file_path: str, target_id: str, arithmetic: bool = True):
         """
         Calculates and exports  the conditional probability table to a CSV file.
@@ -277,14 +302,13 @@ class dtbase:
             arithmetic : bool
                 True if using the arithmetic mean, False if using the geometric mean.
         """
-        assert file_path.endswith('.csv'), 'A valid .csv file path must be entered'
+        assert file_path.endswith('.csv'), 'A valid .csv file path must be provided'
         self.calc_normalized_weights(target_id)
         d = self.calc_cpt(target_id) if arithmetic else self.calc_cpt(target_id)
 
         with open(file_path, 'w') as f:
-            writer = csv.writer(f, delimiter=',', quoting=csv.QUOTE_NONNUMERIC)
+            writer = csv.writer(f, delimiter=',', quotechar='\'', quoting=csv.QUOTE_NONNUMERIC)
             # Spreadsheet headings
             writer.writerow(['Parents', 'Child'])
             for parents, p in d.items():
                 writer.writerow([str(parents), target_id, p])
-
