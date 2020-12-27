@@ -3,8 +3,7 @@ import csv
 from itertools import combinations
 import matplotlib.pyplot as plt
 import networkx as nx
-from reference import ref
-
+from dtbase.reference.ref import ref
 
 class dtbase:
     """
@@ -38,7 +37,18 @@ class dtbase:
             assert name, 'name cannot be an empty string'
             self.name = name
             self.keywords = keywords
-
+        
+        def __dict__(self):
+            """
+            Returns a dict representation of a node.
+            """
+            return { 'name' : self.name, 'keywords' : self.keywords }
+        
+        def __str__(self):
+            """
+            Returns a str representation of a node.
+            """
+            return str(self.__dict__())
 
     class link:
         """
@@ -87,6 +97,19 @@ class dtbase:
             self.m3_memo = m3_memo
             self.reference = reference
             self.weight = 0
+        
+        def __dict__(self):
+            """
+            Returns a dict representation of a link.
+            """
+            return { 'child_id': self.child_id, 'parent_id': self.parent_id, 'm1': self.m1, 'm2': self.m2, 'm3': self.m3,
+                'm1_memo': self.m1_memo, 'm2_memo': self.m2_memo, 'm3_memo': self.m3_memo}
+
+        def __str__(self):
+            """
+            Returns a str representation of a link.
+            """
+            return str(self.__dict__())
     
     def __init__(self):
         """
@@ -111,6 +134,54 @@ class dtbase:
         assert id not in self.nodes and id not in self.links, f'id: {id} already exists. Please choose a unique id.'
         self.nodes[id] = self.node(name, keywords)
 
+    def __getitem__(self, id: str):
+        """
+        Returns the node/link with the given id.
+        """
+        if id in self.nodes:
+            return self.nodes[id]
+        elif id in self.links:
+            return self.links[id]
+        raise KeyError(f'No node or link with id: \'{id}\' was found.')
+
+    def remove_node(self, id: str):
+        """
+        Removes the node and all assoicated links with the given id.
+
+        Parameters
+        ----------
+            id : str
+                a unique short id for the node.
+        """
+        assert id and id in self.nodes
+        del self.nodes[id]
+        del self.adj_list[id]
+        old_links = set()
+        for link_id, link in self.links.items():
+            if link.parent == id:
+                old_links.add(link_id)
+                del self.links[link_id]
+        for id_lst in self.adj_list.values():
+            for link_id in id_lst:
+                if link_id in old_links:
+                    del link_id
+
+    def remove_link(self, id: str):
+        """
+        Removes a link with the given id from the model..
+
+        Parameters
+        ----------
+            id : str
+                a unique short id for the link.
+        """
+        assert id and id in self.links[id]
+        del self.links[id]
+        for id_lst in self.adj_list.values:
+            if id in id_lst:
+                del id
+                break
+        
     def add_link(self, id: str, child_id: str, parent_id: str, m1: float, m2: float, m3: float,
             m1_memo: str = None, m2_memo: str = None, m3_memo: str = None,
             reference: ref = None):
@@ -250,7 +321,7 @@ class dtbase:
             writer = csv.writer(f, delimiter=',', quotechar='\'', quoting=csv.QUOTE_NONNUMERIC)
             # Spreadsheet headings
             writer.writerow(['Link ID', 'Child ID', 'Child Name', 'Child Keywords',
-                'Parent ID', 'Parent Name', 'Parent Keywords'
+                'Parent ID', 'Parent Name', 'Parent Keywords',
                 'Title', 'Authors', 'Year', 'Type', 'Publisher',
                 'M1', 'M1 Memo', 'M2', 'M2 Memo', 'M3', 'M3 Memo'])
             for id, link in self.links.items():
