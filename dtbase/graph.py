@@ -1,6 +1,8 @@
 from collections import defaultdict
 from itertools import combinations
-from pandas import DataFrame
+import matplotlib.pyplot as plt
+import networkx as nx
+
 
 class dtbase:
     """
@@ -198,7 +200,7 @@ class dtbase:
             prod *= 1 - p_table[parent_id]
         return 1 - prod
 
-    def calc_cpt(self, target_id: str, arithmetic: bool = True) -> DataFrame:
+    def calc_cpt(self, target_id: str, arithmetic: bool = True) -> dict:
         cpt = dict()
         table = self.calc_cp_arithmetic(target_id) if arithmetic else self.calc_cp_geometric(target_id)
         for i in range(1, len(self.adj_list[target_id]) + 1):
@@ -206,3 +208,10 @@ class dtbase:
                 c = tuple(self.links[link].parent_id for link in combo)
                 cpt[c] = self.calc_noisy_or(target_id, c, table)
         return cpt
+
+    def export_graph(self, file_path: str):
+        G = nx.DiGraph()
+        for link in self.links.values():
+            G.add_edge(link.parent_id, link.child_id)
+        nx.draw(G, with_labels=True, font_weight='bold')
+        plt.savefig(file_path) 
