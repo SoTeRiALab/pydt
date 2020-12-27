@@ -39,9 +39,15 @@ class dtbase:
             self.keywords = keywords
         
         def __dict__(self):
+            """
+            Returns a dict representation of a node.
+            """
             return { 'name' : self.name, 'keywords' : self.keywords }
         
         def __str__(self):
+            """
+            Returns a str representation of a node.
+            """
             return str(self.__dict__())
 
     class link:
@@ -93,10 +99,16 @@ class dtbase:
             self.weight = 0
         
         def __dict__(self):
+            """
+            Returns a dict representation of a link.
+            """
             return { 'child_id': self.child_id, 'parent_id': self.parent_id, 'm1': self.m1, 'm2': self.m2, 'm3': self.m3,
                 'm1_memo': self.m1_memo, 'm2_memo': self.m2_memo, 'm3_memo': self.m3_memo}
 
         def __str__(self):
+            """
+            Returns a str representation of a link.
+            """
             return str(self.__dict__())
     
     def __init__(self):
@@ -123,11 +135,14 @@ class dtbase:
         self.nodes[id] = self.node(name, keywords)
 
     def __getitem__(self, id: str):
-        assert id in self.nodes or id in self.links
+        """
+        Returns the node/link with the given id.
+        """
         if id in self.nodes:
             return self.nodes[id]
-        else:
+        elif id in self.links:
             return self.links[id]
+        raise KeyError(f'No node or link with id: \'{id}\' was found.')
 
     def remove_node(self, id: str):
         """
