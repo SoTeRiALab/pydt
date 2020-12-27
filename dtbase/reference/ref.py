@@ -40,4 +40,4 @@ class ref:
         }
 
     def __str__(self):
-        return str(dict(self))
+        return str(self.__dict__())

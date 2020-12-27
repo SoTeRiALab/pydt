@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 from dtbase.reference.ref import ref
 
-class dtbase:
+class model:
     """
     Defines the DT-BASE causal model in a graph structure.
 
