@@ -1,7 +1,9 @@
 from collections import defaultdict
+import csv
 from itertools import combinations
 import matplotlib.pyplot as plt
 import networkx as nx
+from reference import ref
 
 
 class dtbase:
@@ -44,7 +46,7 @@ class dtbase:
         """
         def __init__(self, child_id: str, parent_id: str, m1: float, m2: float, m3: float,
             m1_memo: str = None, m2_memo: str = None, m3_memo: str = None,
-            reference = None):
+            reference: ref = None):
             """
             Constructs all necessary attributes for a causal link.
 
@@ -94,7 +96,7 @@ class dtbase:
         self.nodes = dict()
         self.adj_list = defaultdict(lambda: [])
     
-    def add_node(self, id: str, name: str, keywords: str = None):
+    def add_node(self, id: str, name: str, keywords: list = None):
         """
         Adds a node to the graph with the given parameters.
 
@@ -111,7 +113,7 @@ class dtbase:
 
     def add_link(self, id: str, child_id: str, parent_id: str, m1: float, m2: float, m3: float,
             m1_memo: str = None, m2_memo: str = None, m3_memo: str = None,
-            reference = None):
+            reference: ref = None):
         """
         Adds a link from a parent to a child node in the graph with the given parameters.
 
@@ -201,6 +203,16 @@ class dtbase:
         return 1 - prod
 
     def calc_cpt(self, target_id: str, arithmetic: bool = True) -> dict:
+        """
+        Calculates the conditional probability table for a target node,
+
+        Parameters
+        ----------
+            target_id : str
+                the id of the target node.
+            arithmetic : bool
+                True if using the arithmetic mean, False if using the geometric mean.
+        """
         cpt = dict()
         table = self.calc_cp_arithmetic(target_id) if arithmetic else self.calc_cp_geometric(target_id)
         for i in range(1, len(self.adj_list[target_id]) + 1):
@@ -210,8 +222,44 @@ class dtbase:
         return cpt
 
     def export_graph(self, file_path: str):
+        """
+        Exports a visualization of the graph as an image file.
+        
+        Parameters
+        ----------
+            file_path : str
+                the intended file path to save the image.
+        """
         G = nx.DiGraph()
         for link in self.links.values():
             G.add_edge(link.parent_id, link.child_id)
         nx.draw(G, with_labels=True, font_weight='bold')
-        plt.savefig(file_path) 
+        plt.savefig(file_path)
+    
+    def export_data(self, file_path: str):
+        """
+        Exports the model data to a CSV file.
+        
+        Parameters
+        ----------
+            file_path : str
+                the intended file path to save the model.
+        """
+        assert file_path.endswith('.csv'), 'A valid .csv file path must be entered'
+        with open(file_path, 'w') as f:
+            writer = csv.writer(f, delimiter=',', quotechar='\'')
+            # Spreadsheet headings
+            writer.writerow(['Link ID', 'Child ID', 'Child Name', 'Child Keywords',
+                'Parent ID', 'Parent Name', 'Parent Keywords'
+                'Title', 'Authors', 'Year', 'Type', 'Publisher',
+                'M1', 'M1 Memo', 'M2', 'M2 Memo', 'M3', 'M3 Memo'])
+            for id, link in self.links.items():
+                writer.writerow([id, link.child_id, self.nodes[link.child_id].name, 
+                    self.nodes[link.child_id].keywords, link.parent_id, self.nodes[link.parent_id].name, 
+                    self.nodes[link.parent_id].keywords, 
+                    link.reference.title if link.reference else None, 
+                    link.reference.year if link.reference else None,
+                    link.reference.type if link.reference else None,
+                    link.reference.publisher if link.reference else None,
+                    link.m1, link.m1_memo, 
+                    link.m2, link.m2_memo, link.m3, link.m3_memo])
