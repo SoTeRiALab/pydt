@@ -130,8 +130,7 @@ class model:
             
             other parameters defined in the node class
         """
-        assert id and len(id) <= 5, 'id must have a length of 5 or fewer characters'
-        assert id not in self.nodes and id not in self.links, f'id: {id} already exists. Please choose a unique id.'
+        assert id and id not in self.nodes and id not in self.links, f'id: {id} already exists. Please choose a unique id.'
         self.nodes[id] = self.node(name, keywords)
 
     def __getitem__(self, id: str):
@@ -195,8 +194,7 @@ class model:
             
             other parameters defined in the link class
         """
-        assert id and len(id) <= 5, 'id must have a length of 5 or fewer characters'
-        assert id not in self.nodes and id not in self.links, f'id: {id} already exists. Please choose a unique id.'
+        assert id and id not in self.nodes and id not in self.links, f'id: {id} already exists. Please choose a unique id.'
         assert parent_id in self.nodes, f'{parent_id} does not exist in the graph'
         assert child_id in self.nodes, f'{child_id} does not exist in the graph'
         self.links[id] = self.link(child_id, parent_id, m1, m2, m3, m1_memo, m2_memo, m3_memo, reference)
@@ -292,7 +290,7 @@ class model:
                 cpt[c] = self.calc_noisy_or(target_id, c, table)
         return cpt
 
-    def export_graph(self, file_path: str):
+    def draw(self, file_path: str):
         """
         Exports a visualization of the graph as an image file.
         
@@ -304,7 +302,7 @@ class model:
         G = nx.DiGraph()
         for link in self.links.values():
             G.add_edge(link.parent_id, link.child_id)
-        nx.draw(G, with_labels=True, font_weight='bold')
+        nx.draw_spring(G, with_labels=True, node_size=500)
         plt.savefig(file_path)
     
     def export_data(self, file_path: str):
@@ -350,14 +348,18 @@ class model:
         self.nodes.clear()
         self.links.clear()
         with open(file_path, 'r') as f:
-            reader = csv.reader(f, quotechar='\'', quoting=csv.QUOTE_NONNUMERIC)
+            reader = csv.reader(f)
             # Spreadsheet headings
-            reader.__next__()
+            next(reader)
             for row in reader:
-                self.add_node(row[1], row[2], row[3])
-                self.add_node(row[4], row[5], row[6])
-                self.add_link(row[0], row[1], row[4], row[11], row[13], row[15],
-                    row[12], row[14], row[16])
+                child_id = row[1]
+                parent_id = row[4]
+                if child_id not in self.nodes:
+                    self.add_node(child_id, row[2], row[3])
+                if parent_id not in self.nodes:
+                    self.add_node(parent_id, row[5], row[6])
+                self.add_link(row[0], row[1], row[4], float(row[12]), float(row[14]), float(row[16]),
+                    row[13], row[15], row[17])
                 
 
     def export_cpt(self, file_path: str, target_id: str, arithmetic: bool = True):

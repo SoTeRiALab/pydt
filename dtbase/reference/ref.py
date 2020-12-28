@@ -13,8 +13,8 @@ class ref:
                 the title of the paper/article.
             year : str
                 the year the publication was written in.
-            authors : list
-                a list of all the author names.
+            authors : str
+                a str with all the author names.
             publication_type : str
                 the type of publication. Must be a valid .ris "TY" tag value.
             publisher : str 

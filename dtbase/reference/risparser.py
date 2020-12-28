@@ -46,5 +46,5 @@ class ris:
                 year_ = entry['year'] if 'year' in entry \
                     else entry['publication_year'] if 'publication_year' in entry \
                     else None
-                out.append(ref(title_, year_ , authors_, type_, publisher_))
+                out.append(ref(title_, year_ , str(authors_), type_, publisher_))
         return out
