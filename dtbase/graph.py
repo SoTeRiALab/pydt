@@ -50,6 +50,9 @@ class model:
             """
             return str(self.__dict__())
 
+        def __hash__(self):
+            return hash((self.name, self.keywords))
+
     class link:
         """
         Defines a link between two nodes in the graph for the DT-BASE model.
@@ -102,22 +105,27 @@ class model:
             """
             Returns a dict representation of a link.
             """
-            return { 'child_id': self.child_id, 'parent_id': self.parent_id, 'm1': self.m1, 'm2': self.m2, 'm3': self.m3,
-                'm1_memo': self.m1_memo, 'm2_memo': self.m2_memo, 'm3_memo': self.m3_memo}
-
+            out = ({ 'child_id': self.child_id, 'parent_id': self.parent_id, 'm1': self.m1, 
+                'm2': self.m2, 'm3': self.m3,
+                'm1_memo': self.m1_memo, 'm2_memo': self.m2_memo, 'm3_memo': self.m3_memo })
+            out.update({ dict(self.reference) })
+            return out
+    
         def __str__(self):
             """
             Returns a str representation of a link.
             """
             return str(self.__dict__())
+        
+        def __hash__(self):
+            return hash((self.child_id, self.parent_id, self.reference))
     
     def __init__(self):
         """
         Constructs an empty graph for the DT-BASE causal model.
         """
-        self.links = dict()
-        self.nodes = dict()
-        self.adj_list = defaultdict(lambda: [])
+        self.graph = nx.MultiDiGraph()
+        self.link_ids = set()
     
     def add_node(self, id: str, name: str, keywords: list = None):
         """
@@ -130,20 +138,19 @@ class model:
             
             other parameters defined in the node class
         """
-        assert id and id not in self.nodes and id not in self.links, f'id: {id} already exists. Please choose a unique id.'
-        self.nodes[id] = self.node(name, keywords)
+        if self.graph.has_node(id):
+            raise ValueError(f'Node [{id}] already exists. Please choose a unique id.')
+        self.graph.add_node(id, node=self.node(name, keywords))
 
-    def __getitem__(self, id: str):
+    def get_node(self, id: str) -> node:
         """
-        Returns the node/link with the given id.
+        Returns the node with the given id.
         """
-        if id in self.nodes:
-            return self.nodes[id]
-        elif id in self.links:
-            return self.links[id]
-        raise KeyError(f'No node or link with id: \'{id}\' was found.')
+        if self.graph.has_node(id):
+            return self.graph.nodes[id]
+        raise KeyError(f'Node [{id}] was not found.')
 
-    def remove_node(self, id: str):
+    def remove_node(self, id: str) -> None:
         """
         Removes the node and all assoicated links with the given id.
 
@@ -152,38 +159,12 @@ class model:
             id : str
                 a unique short id for the node.
         """
-        assert id and id in self.nodes
-        del self.nodes[id]
-        del self.adj_list[id]
-        old_links = set()
-        for link_id, link in self.links.items():
-            if link.parent == id:
-                old_links.add(link_id)
-                del self.links[link_id]
-        for id_lst in self.adj_list.values():
-            for link_id in id_lst:
-                if link_id in old_links:
-                    del link_id
+        self.graph.remove_node(id)
 
-    def remove_link(self, id: str):
-        """
-        Removes a link with the given id from the model..
 
-        Parameters
-        ----------
-            id : str
-                a unique short id for the link.
-        """
-        assert id and id in self.links[id]
-        del self.links[id]
-        for id_lst in self.adj_list.values:
-            if id in id_lst:
-                del id
-                break
-        
-    def add_link(self, id: str, child_id: str, parent_id: str, m1: float, m2: float, m3: float,
+    def add_link(self, link_id: str, child_id: str, parent_id: str, m1: float, m2: float, m3: float,
             m1_memo: str = None, m2_memo: str = None, m3_memo: str = None,
-            reference: ref = None):
+            reference: ref = None) -> None:
         """
         Adds a link from a parent to a child node in the graph with the given parameters.
 
@@ -194,13 +175,51 @@ class model:
             
             other parameters defined in the link class
         """
-        assert id and id not in self.nodes and id not in self.links, f'id: {id} already exists. Please choose a unique id.'
-        assert parent_id in self.nodes, f'{parent_id} does not exist in the graph'
-        assert child_id in self.nodes, f'{child_id} does not exist in the graph'
-        self.links[id] = self.link(child_id, parent_id, m1, m2, m3, m1_memo, m2_memo, m3_memo, reference)
-        self.adj_list[child_id].append(id)
+        if self.graph.has_node(id) or link_id in self.link_ids:
+            raise ValueError(f'[{id}] already exists in the model. Please use a unique id.')
+        if not self.graph.has_node(child_id):
+            raise ValueError(f'Node [{child_id}] does not exist in the model.')
+        if not self.graph.has_node(parent_id):
+            raise ValueError(f'Node [{parent_id}] does not exist in the model.')
+        self.graph.add_edge(parent_id, child_id, link_id=link_id,
+            link=self.link(child_id, parent_id, m1, m2, m3, m1_memo, m2_memo, m3_memo, reference))
+        self.link_ids.add(link_id)
+
+    def _find_link_helper(self, link_id: str) -> tuple:
+        for edge in self.graph.edges:
+            for key, link in self.graph.get_edge_data(edge[0], edge[1]).items():
+                if link['link_id'] == link_id:
+                    return key, link['link']
+        return None
+
+    def get_link(self, link_id: str) -> link:
+        if link_id not in self.link_ids:
+            raise KeyError(f'Link [{link_id}] does not exist in the model.')
+        return self._find_link_helper(link_id)[1]
+
+    def remove_link(self, link_id: str) -> None:
+        """
+        Removes a link with the given id from the model..
+
+        Parameters
+        ----------
+            id : str
+                a unique short id for the link.
+        """
+        if link_id not in self.link_ids:
+            raise KeyError(f'Link [{link_id}] does not exist in the model.')
+        key, link = self._find_link_helper(link_id)
+        self.graph.remove_edge(link.parent_id, link.child_id, key)
+        self.link_ids.remove(link_id)
+
+    def nodes(self) -> list:
+        return self.graph.nodes
+
+    def links(self) -> list:
+        return list(self.link_ids)
     
-    def calc_normalized_weights(self, target_id: str):
+    
+    '''def calc_normalized_weights(self, target_id: str):
         """
         Calculates the normalized weight of each link in the graph and populates the weight field for each link.
 
@@ -288,7 +307,7 @@ class model:
             for combo in combinations(self.adj_list[target_id], i):
                 c = tuple(self.links[link].parent_id for link in combo)
                 cpt[c] = self.calc_noisy_or(target_id, c, table)
-        return cpt
+        return cpt '''
 
     def draw(self, file_path: str):
         """
@@ -299,10 +318,7 @@ class model:
             file_path : str
                 the intended file path to save the image.
         """
-        G = nx.DiGraph()
-        for link in self.links.values():
-            G.add_edge(link.parent_id, link.child_id)
-        nx.draw_spring(G, with_labels=True, node_size=500)
+        nx.draw_spring(self.graph, with_labels=True, node_size=500)
         plt.savefig(file_path)
     
     def export_data(self, file_path: str):
@@ -322,16 +338,16 @@ class model:
                 'Parent ID', 'Parent Name', 'Parent Keywords',
                 'Title', 'Authors', 'Year', 'Type', 'Publisher',
                 'M1', 'M1 Memo', 'M2', 'M2 Memo', 'M3', 'M3 Memo'])
-            for id, link in self.links.items():
-                writer.writerow([id, link.child_id, self.nodes[link.child_id].name, 
-                    self.nodes[link.child_id].keywords, link.parent_id, self.nodes[link.parent_id].name, 
+            """ for edge in self.graph.edges:
+                writer.writerow([id, edge.link.child_id, self.nodes[edge.link.child_id].name, 
+                    self.nodes[edge.link.child_id].keywords, link.parent_id, self.nodes[link.parent_id].name, 
                     self.nodes[link.parent_id].keywords, 
                     link.reference.title if link.reference else None, 
                     link.reference.year if link.reference else None,
                     link.reference.type if link.reference else None,
                     link.reference.publisher if link.reference else None,
                     link.m1, link.m1_memo, 
-                    link.m2, link.m2_memo, link.m3, link.m3_memo])
+                    link.m2, link.m2_memo, link.m3, link.m3_memo]) """
 
     def import_data(self, file_path: str):
         """
@@ -344,9 +360,7 @@ class model:
         """
         assert file_path.endswith('.csv'), 'A valid .csv file path must be provided'
         # Clear all data
-        self.adj_list.clear()
-        self.nodes.clear()
-        self.links.clear()
+        self.graph.clear()
         with open(file_path, 'r') as f:
             reader = csv.reader(f)
             # Spreadsheet headings
@@ -354,15 +368,15 @@ class model:
             for row in reader:
                 child_id = row[1]
                 parent_id = row[4]
-                if child_id not in self.nodes:
+                if not self.graph.has_node(child_id):
                     self.add_node(child_id, row[2], row[3])
-                if parent_id not in self.nodes:
+                if not self.graph.has_node(parent_id):
                     self.add_node(parent_id, row[5], row[6])
                 self.add_link(row[0], row[1], row[4], float(row[12]), float(row[14]), float(row[16]),
                     row[13], row[15], row[17])
                 
 
-    def export_cpt(self, file_path: str, target_id: str, arithmetic: bool = True):
+    '''def export_cpt(self, file_path: str, target_id: str, arithmetic: bool = True):
         """
         Calculates and exports  the conditional probability table to a CSV file.
         
@@ -384,4 +398,4 @@ class model:
             # Spreadsheet headings
             writer.writerow(['Parents', 'Child'])
             for parents, p in d.items():
-                writer.writerow([str(parents), target_id, p])
+                writer.writerow([str(parents), target_id, p])'''
