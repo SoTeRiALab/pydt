@@ -217,8 +217,7 @@ class model:
     def links(self) -> list:
         return list(self.link_ids)
     
-    
-    '''def calc_normalized_weights(self, target_id: str):
+    def calc_normalized_weights(self, target_id: str) -> None:
         """
         Calculates the normalized weight of each link in the graph and populates the weight field for each link.
 
@@ -227,18 +226,20 @@ class model:
             target_id : str
                 the target child node across which the weights are normalized.
         """
-        assert len(self.adj_list[target_id]), 'there are no directed edges to the given target node in the graph'
+        
         # calculate Z, the normalization factor for the weight calculation for each parent node for the
         # given target node.
-        Z = { id : 0 for id in self.nodes }
-        for link_id in self.adj_list[target_id]:
-            link = self.links[link_id]
-            Z[link.parent_id] += link.m1 * link.m3
+        Z = { id : 0 for id in self.nodes() }
+        for parent_id in self.graph.predecessors(target_id):            
+            for edge in self.graph.get_edge_data(parent_id, target_id).values():
+                link = edge['link']
+                Z[parent_id] += link.m1 * link.m3
 
         # calculate the normalized weight of each link
-        for link_id in self.adj_list[target_id]:
-            link = self.links[link_id]
-            link.weight = (link.m1 * link.m3) / Z[link.parent_id]
+        for parent_id in self.graph.predecessors(target_id):
+            for edge in self.graph.get_edge_data(parent_id, target_id).values():
+                link = edge['link']
+                link.weight = (link.m1 * link.m3) / Z[link.parent_id]
 
     def calc_cp_arithmetic(self, target_id: str) -> dict:
         """
@@ -250,9 +251,11 @@ class model:
             target_id : str
                 the target child node across which the weights are normalized.
         """
-        p = { self.links[link].parent_id : 0.0 for link in self.adj_list[target_id] }
-        for link in self.adj_list[target_id]:
-            p[self.links[link].parent_id] += self.links[link].weight * self.links[link].m2
+        p = { pred : 0.0 for pred in self.graph.predecessors(target_id) }
+        for parent_id in p:            
+            for edge in self.graph.get_edge_data(parent_id, target_id).values():
+                link = edge['link']
+                p[parent_id] += link.weight * link.m2
         return p
 
     def calc_cp_geometric(self, target_id: str) -> dict:
@@ -265,9 +268,11 @@ class model:
             target_id : str
                 the target child node across which the weights are normalized.
         """
-        p = { self.links[link].parent_id : 1.0 for link in self.adj_list[target_id] }
-        for link in self.adj_list[target_id]:
-            p[self.links[link].parent_id] *=  (self.links[link].m2 ** self.links[link].weight)
+        p = { pred : 1.0 for pred in self.graph.predecessors(target_id) }
+        for parent_id in p:            
+            for edge in self.graph.get_edge_data(parent_id, target_id).values():
+                link = edge['link']
+                p[parent_id] *=  (link.m2 ** link.weight)
         return p
 
     def calc_noisy_or(self, target_id: str, parent_ids: tuple, p_table: dict):
@@ -301,12 +306,13 @@ class model:
                 True if using the arithmetic mean, False if using the geometric mean.
         """
         cpt = dict()
+        self.calc_normalized_weights(target_id)
         table = self.calc_cp_arithmetic(target_id) if arithmetic else self.calc_cp_geometric(target_id)
-        for i in range(1, len(self.adj_list[target_id]) + 1):
-            for combo in combinations(self.adj_list[target_id], i):
-                c = tuple(self.links[link].parent_id for link in combo)
-                cpt[c] = self.calc_noisy_or(target_id, c, table)
-        return cpt '''
+        pred = list(self.graph.predecessors(target_id))
+        for i in range(1, len(pred) + 1):
+            for combo in combinations(pred, i):
+                cpt[combo] = self.calc_noisy_or(target_id, combo, table)
+        return cpt
 
     def draw(self, file_path: str):
         """
@@ -331,22 +337,25 @@ class model:
         """
         assert file_path.endswith('.csv'), 'A valid .csv file path must be provided'
         with open(file_path, 'w') as f:
-            writer = csv.writer(f, delimiter=',', quotechar='\'', quoting=csv.QUOTE_NONNUMERIC)
+            writer = csv.writer(f, delimiter=',', quoting=csv.QUOTE_NONE)
             # Spreadsheet headings
             writer.writerow(['Link ID', 'Child ID', 'Child Name', 'Child Keywords',
                 'Parent ID', 'Parent Name', 'Parent Keywords',
                 'Title', 'Authors', 'Year', 'Type', 'Publisher',
                 'M1', 'M1 Memo', 'M2', 'M2 Memo', 'M3', 'M3 Memo'])
-            """ for edge in self.graph.edges:
-                writer.writerow([id, edge.link.child_id, self.nodes[edge.link.child_id].name, 
-                    self.nodes[edge.link.child_id].keywords, link.parent_id, self.nodes[link.parent_id].name, 
-                    self.nodes[link.parent_id].keywords, 
-                    link.reference.title if link.reference else None, 
+            for edge in self.graph.edges:
+                link = self.graph.get_edge_data(edge[0], edge[1], edge[2])['link']
+                child = self.get_node(link.child_id)
+                parent = self.get_node(link.parent_id)
+                writer.writerow([id, link.child_id, child.name,
+                    child.keywords, link.parent_id, parent.name,
+                    parent.keywords,
+                    link.reference.title if link.reference else None,
                     link.reference.year if link.reference else None,
                     link.reference.type if link.reference else None,
                     link.reference.publisher if link.reference else None,
-                    link.m1, link.m1_memo, 
-                    link.m2, link.m2_memo, link.m3, link.m3_memo]) """
+                    link.m1, link.m1_memo,
+                    link.m2, link.m2_memo, link.m3, link.m3_memo])
 
     def import_data(self, file_path: str):
         """
@@ -375,7 +384,7 @@ class model:
                     row[13], row[15], row[17])
                 
 
-    '''def export_cpt(self, file_path: str, target_id: str, arithmetic: bool = True):
+    def export_cpt(self, file_path: str, target_id: str, arithmetic: bool = True):
         """
         Calculates and exports  the conditional probability table to a CSV file.
         
@@ -397,4 +406,4 @@ class model:
             # Spreadsheet headings
             writer.writerow(['Parents', 'Child'])
             for parents, p in d.items():
-                writer.writerow([str(parents), target_id, p])'''
+                writer.writerow([str(parents), target_id, p])
