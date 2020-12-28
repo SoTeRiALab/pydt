@@ -369,6 +369,7 @@ class model:
         assert file_path.endswith('.csv'), 'A valid .csv file path must be provided'
         # Clear all data
         self.graph.clear()
+        self.link_ids.clear()
         with open(file_path, 'r') as f:
             reader = csv.reader(f)
             # Spreadsheet headings
