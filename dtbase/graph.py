@@ -105,11 +105,10 @@ class model:
             """
             Returns a dict representation of a link.
             """
-            out = ({ 'child_id': self.child_id, 'parent_id': self.parent_id, 'm1': self.m1, 
+            return { 'child_id': self.child_id, 'parent_id': self.parent_id, 'm1': self.m1, 
                 'm2': self.m2, 'm3': self.m3,
-                'm1_memo': self.m1_memo, 'm2_memo': self.m2_memo, 'm3_memo': self.m3_memo })
-            out.update({ dict(self.reference) })
-            return out
+                'm1_memo': self.m1_memo, 'm2_memo': self.m2_memo, 'm3_memo': self.m3_memo,
+                'reference': self.reference }
     
         def __str__(self):
             """
@@ -147,7 +146,7 @@ class model:
         Returns the node with the given id.
         """
         if self.graph.has_node(id):
-            return self.graph.nodes[id]
+            return self.graph.nodes[id]['node']
         raise KeyError(f'Node [{id}] was not found.')
 
     def remove_node(self, id: str) -> None:
@@ -187,9 +186,9 @@ class model:
 
     def _find_link_helper(self, link_id: str) -> tuple:
         for edge in self.graph.edges:
-            for key, link in self.graph.get_edge_data(edge[0], edge[1]).items():
-                if link['link_id'] == link_id:
-                    return key, link['link']
+            e = self.graph.get_edge_data(edge[0], edge[1], edge[2])
+            if e['link_id'] == link_id:
+                return edge[2], e['link']
         return None
 
     def get_link(self, link_id: str) -> link:
