@@ -28,9 +28,6 @@ class ref:
         self.publisher = publisher
     
     def __dict__(self):
-        """
-        Function to return a dictionary representation of the reference.
-        """
         return {
             'title': self.title,
             'year': self.year,
@@ -41,3 +38,6 @@ class ref:
 
     def __str__(self):
         return str(self.__dict__())
+
+    def __hash__(self):
+        return hash((self.title, self.authors))
