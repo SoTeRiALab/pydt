@@ -1,21 +1,36 @@
 import csv
-import dtbase.model as model
-import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
 from pathlib import Path
 import tempfile
 import shutil
+import dtbase.model as model
 
-class dtbasemodel:
-    def __init__(self, seed: int=None):
-        if seed:
-            np.random.seed(seed)
+class DTBase:
+    '''
+    Defines the structure of the DT-BASE causal model.
+
+    Attributes
+    ----------
+    graph (nx.MultiDiGraph) : a directed acyclic graph representing the causal model.
+    db (model.db) : a db object to access and modify the database.
+    '''
+    def __init__(self, file_path: str, ):
+        '''
+        Constructs a DTBase model object.
+
+        Parameters
+        ----------
+        file_path (str) : a file path for the database file.
+        '''
         self.graph = nx.MultiDiGraph()
-        self.db = model.db()
+        self.db = model.db(file_path)
         self.build_graph()
 
     def build_graph(self):
+        '''
+        Builds a graph from the links and nodes database contents.
+        '''
         self.graph.clear()
         for node_id in self.nodes():
             self.graph.add_node(node_id)
@@ -24,10 +39,24 @@ class dtbasemodel:
             self.graph.add_edge(link.parent_id, link.child_id, key=link.edge_key, link_id=link.link_id)
 
     def draw(self, file_path: str) -> None:
+        '''
+        Draws a visual representation of the graph and saves it to a file.
+
+        Parameters
+        ----------
+        file_path (str) : the file path to save the image.
+        '''
         nx.draw_spring(self.graph, with_labels=True, node_size=750)
         plt.savefig(file_path)
 
     def add_node(self, node: model.Node) -> None:
+        '''
+        Adds a Node to the model.
+
+        Parameters
+        ----------
+        node (model.Node) : the node to add to the model.
+        '''
         if self.db.get_node(node.node_id):
             raise ValueError(f'[{node.node_id}] already exists in the model.')
         elif not isinstance(node, model.Node):
@@ -36,6 +65,13 @@ class dtbasemodel:
         self.graph.add_node(node.node_id)
     
     def add_link(self, link: model.Link) -> None:
+        '''
+        Adds a Link between two Nodes to the model.
+
+        Parameters
+        ----------
+        link (model.Link) : the Link to add to the model.
+        '''
         if self.db.get_link(link.link_id):
             raise ValueError(f'[{link.link_id}] already exists in the model.')
         elif not isinstance(link, model.Link):
@@ -49,31 +85,66 @@ class dtbasemodel:
         self.db.add_link(link)
     
     def add_reference(self, reference: model.Reference) -> None:
+        '''
+        Adds a Reference to the model.
+
+        Parameters
+        ----------
+        reference (model.Reference) : the Reference to add to the model.
+        '''
         if self.db.get_reference(reference.ref_id):
-            raise ValueError(f'[{reference.ref_id}] already exists in the model..')
+            raise ValueError(f'[{reference.ref_id}] already exists in the model.')
         elif not isinstance(reference, model.Reference):
             raise TypeError(f'link expected [dtbase.reference], found [{type(reference)}]')
         self.db.add_reference(reference)
 
     def get_node(self, node_id: str) -> model.Node:
+        '''
+        Returns a Node with a given id from the model if it exists. Otherwise, raises a KeyError.
+
+        Parameters
+        ----------
+        node_id (str) : the node_id of the Node to retrieve from the model.
+        '''
         node = self.db.get_node(node_id)
         if not node:
             raise KeyError(f'Node [{node_id}] does not exist in the model.')
         return node
 
     def get_link(self, link_id: str) -> model.Link:
+        '''
+        Returns a Link with a given id from the model if it exists. Otherwise, raises a KeyError.
+
+        Parameters
+        ----------
+        link_id (str) : the link_id of the Link to retrieve from the model.
+        '''
         link = self.db.get_link(link_id)
         if not link:
             raise KeyError(f'Link [{link_id}] does not exist in the model.')
         return link
 
     def get_reference(self, ref_id: str) -> model.Reference:
+        '''
+        Returns a Reference with a given id from the model if it exists. Otherwise, raises a KeyError.
+
+        Parameters
+        ----------
+        ref_id (str) : the ref_id of the Reference to retrieve from the model.
+        '''
         ref = self.db.get_reference(ref_id)
         if not ref:
             raise KeyError(f'Reference [{ref_id}] does not exist in the model.')
         return ref
 
     def remove_node(self, node_id: str) -> None:
+        '''
+        Removes a Node with a given id from the model if it exists. Otherwise, raises a KeyError.
+
+        Parameters
+        ----------
+        node_id (str) : the node_id of the Node to remove from the model.
+        '''
         if self.db.get_node(node_id):
             self.graph.remove_node(node_id)
             self.db.remove_node(node_id)
@@ -81,6 +152,13 @@ class dtbasemodel:
         raise KeyError(f'Node [{node_id}] does not exist in the model.')
 
     def remove_link(self, link_id: str) -> None:
+        '''
+        Removes a Link with a given id from the model if it exists. Otherwise, raises a KeyError.
+
+        Parameters
+        ----------
+        link_id (str) : the link_id of the Link to remove from the model.
+        '''
         link = self.db.get_link(link_id)
         if link:
             self.graph.remove_edge(link.parent_id, link.child_id, link.edge_key)
@@ -89,29 +167,49 @@ class dtbasemodel:
         raise KeyError(f'Link [{link_id}] does not exist in the model.')
 
     def remove_reference(self, ref_id: str) -> None:
+        '''
+        Removes a Reference with a given id from the model if it exists. Otherwise, raises a KeyError.
+
+        Parameters
+        ----------
+        ref_id (str) : the ref_id of the Reference to remove from the model.
+        '''
         if self.db.get_reference(ref_id):
             self.db.remove_reference(ref_id)
             return
-        raise KeyError(f'Reference [{ref_id}] does not exist in the model..')
+        raise KeyError(f'Reference [{ref_id}] does not exist in the model.')
 
-    def nodes(self) -> list:
+    def nodes(self) -> set:
+        '''
+        Returns the set of all the node_ids in the model.
+        '''
         return self.db.nodes()
     
-    def links(self) -> list:
+    def links(self) -> set:
+        '''
+        Returns the set of all the link_ids in the model.
+        '''
         return self.db.links()
 
-    def references(self) -> list:
+    def references(self) -> set:
+        '''
+        Returns the set of all the ref_ids in the model.
+        '''
         return self.db.references()
 
     def clear(self):
+        '''
+        Clears the entire model, including all Nodes, Links, and References.
+        '''
         self.db.clear()
         self.graph.clear()
 
-    def export_model(self, file_path: str) -> None:
-        if not file_path.endswith('.tar.gz') and not file_path.endswith('.zip'):
-            raise ValueError('The provided file path must be a valid zip, \
-                tar, gztar, bztar, or xztar file')
-        tmp_path = Path(tempfile.mkdtemp())
-        self.db.export_data_files(tmp_path)
-        self.draw(tmp_path.joinpath('model.png'))
-        shutil.make_archive(tmp_path, 'zip', file_path, 'root')
+    def export_model(self, name: str) -> None:
+        '''
+        Creates a .zip file with all the model data
+        '''
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir)
+            self.db.export_data_files(path)
+            self.draw(path.joinpath(Path('model.png')))
+            shutil.make_archive(name, 'zip', path)

@@ -1,4 +1,4 @@
-from .uncertainty import Estimate
+from .estimate import Estimate
 
 class Link:
     '''

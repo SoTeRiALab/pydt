@@ -1,83 +1,124 @@
-from .dtbase import dtbasemodel
-from itertools import combinations
-from pandas import DataFrame
+from collections import defaultdict
+import csv
 from enum import Enum
+from itertools import combinations
+import numpy as np
+from pandas import DataFrame
+from .dtbase import DTBase
+
+# default sample size for the Monte Carlo method
+sample_size = int(1e5)
 
 class AggregationMethod(Enum):
+    '''
+    Stores the possible Aggregation Methods.
+    '''
     ARITHMETIC=0,
     GEOMETRIC=1
 
-class Quantify:
-    def __init__(self, model: dtbasemodel, target_node: str):
-        self.model = model
-        self.target_node = target_node
-        if not self.model.graph.has_node(target_node):
-            raise ValueError(f'Node [{target_node}] does not exist in the model.')
-        self.predecessors = set(self.model.graph.predecessors(self.target_node))
-        self.normalized_link_weights = None
-        self.aggregated_cp = None
-        self.cpt = None
-        self.quant = False
+def calculate(model: DTBase, target_node: str, ag_method: AggregationMethod) -> defaultdict:
+    '''
+    Returns a defaultdict representing the conditional probability table for a target_node.
+    Each key in the defaultdict is a tuple of parent nodes.
+    Each value is P(target_node | parents).
 
-    def calculate(self, ag_method: AggregationMethod):
-        self.normalized_link_weights = self.normalize_weights()
-        if ag_method == AggregationMethod.ARITHMETIC:
-            self.aggregated_cp = self.calc_cp_arithmetic()
-        elif ag_method == AggregationMethod.GEOMETRIC:
-            self.aggregated_cp = self.calc_cp_geometric()
-        self.cpt = self.calc_cpt()
-        self.quant = True
+    Parameters
+    ----------
+    model (DTBase) : the DTBase model to quantify
+    target_node(str) : the node_id of the target node.
+    ag_method (AggregationMethod) : the enum value representing the type of AggregationMethod to use.
+    '''
+    if ag_method == AggregationMethod.ARITHMETIC:
+        aggregated_cp = calc_cp_arithmetic(model, target_node, calc_normalized_weights(model, target_node))
+    elif ag_method == AggregationMethod.GEOMETRIC:
+        aggregated_cp = calc_cp_geometric(model, target_node, calc_normalized_weights(model, target_node))
 
-    def normalize_weights(self) -> DataFrame:
-        links = set()
-        Z = { node_id : 0 for node_id in self.predecessors }
-        for parent_id in Z:    
-            for edge in self.model.graph.get_edge_data(parent_id, self.target_node).values():
-                link = self.model.get_link(edge['link_id'])
-                Z[parent_id] += link.m1 * link.m3
-                links.add(link)
-        weights = DataFrame(index=[link.link_id for link in links], columns=['edge_key', 'parent_id', 'child_id', 'weight'])
-        for link_id in weights.index:
-            link = self.model.get_link(link_id)
-            weights.loc[link_id, 'edge_key'] = link.edge_key
-            weights.loc[link_id, 'parent_id'] = link.parent_id
-            weights.loc[link_id, 'child_id'] = link.child_id
-            weights.loc[link_id, 'weight'] = (link.m1 * link.m3) / Z[link.parent_id]
-        return weights
+    cpt = defaultdict(lambda: np.zeros(sample_size))
+    pred = set(model.graph.predecessors(target_node))
+    for i in range(1, len(pred) + 1):
+        for combo in combinations(pred, i):
+            c = calc_noisy_or(aggregated_cp, combo)
+            cpt[combo] = (np.mean(c), np.std(c))
+    return cpt
 
-    def calc_cp_arithmetic(self) -> DataFrame:
-        cp = DataFrame([0.0] * len(self.predecessors), index=[link_id for link_id in self.predecessors], 
-            columns=['conditional_probability'])
-        for parent_id in cp.index:         
-            for edge in self.model.graph.get_edge_data(parent_id, self.target_node).values():
-                link = self.model.get_link(edge['link_id'])
-                cp.loc[parent_id, 'conditional_probability'] += self.normalized_link_weights.loc[link.link_id, 
-                    'weight'] * link.m2
-        return cp
+def calc_normalized_weights(model: DTBase, target_node: str) -> defaultdict:
+    '''
+    Returns a defaultdict with the normalized weights for each link pointing to the target node.
+    The result is a map of link_id -> weight.
 
-    def calc_cp_geometric(self) -> DataFrame:
-        cp = DataFrame([1.0] * len(self.predecessors), index=[link_id for link_id in self.predecessors], 
-            columns=['conditional_probability'])
-        for parent_id in cp.index:         
-            for edge in self.model.graph.get_edge_data(parent_id, self.target_node).values():
-                link = self.model.get_link(edge['link_id'])
-                cp.loc[parent_id, 'conditional_probability'] *= link.m2 ** l
-        return cp
+    Parameters
+    ----------
+    model (DTBase) : the DTBase model to quantify.
+    target_node(str) : the node_id of the target node.
+    '''
+    links = set()
+    Z = { node_id : np.zeros(sample_size) for node_id in model.graph.predecessors(target_node) }
+    for parent_id in Z:    
+        for edge in model.graph.get_edge_data(parent_id, target_node).values():
+            link = model.get_link(edge['link_id'])
+            Z[parent_id] += link.m1.sample * link.m3.sample
+            links.add(link)
+    weights = defaultdict(lambda: np.zeros(sample_size))
+    for link_id in model.links():
+        link = model.get_link(link_id)
+        weights[link_id] = (link.m1.sample * link.m3.sample) / Z[link.parent_id]
+    return weights
 
-    def calc_noisy_or(self, parent_ids: tuple) -> float:
-        prod = 1
-        for parent_id in parent_ids:
-            prod *= 1 - self.aggregated_cp.loc[parent_id, 'conditional_probability']
-        return 1 - prod
+def calc_cp_arithmetic(model: DTBase, target_node: str, normalized_weights: defaultdict) -> defaultdict:
+    '''
+    Returns a defaultdict with the aggregated weight using arithmetic mean of a link between two nodes.
+    The result is a map of parent node_id -> weight.
 
-    def calc_cpt(self):
-        cpt = {}
-        for i in range(1, len(self.predecessors) + 1):
-            for combo in combinations(self.predecessors, i):
-                cpt[combo] = self.calc_noisy_or(combo)
-        return DataFrame(cpt.values(), index=[tuple(key) for key in cpt], columns=['conditional_probability'])
+    Parameters
+    ----------
+    model (DTBase) : the DTBase model to quantify.
+    target_node(str) : the node_id of the target node.
+    normalized_weights (defaultdict) : the normalized weights calculated using calc_normalized_weights.
+    '''
+    cp = defaultdict(lambda: np.zeros(sample_size))
+    for parent_id in model.graph.predecessors(target_node):         
+        for edge in model.graph.get_edge_data(parent_id, target_node).values():
+            link = model.get_link(edge['link_id'])
+            cp[parent_id] += normalized_weights[link.link_id] * link.m2.sample
+    return cp
 
-    def export_results(self, file_path: str):
-        if not self.quant:
-            raise RuntimeError('run calculate() before exporting the results.')
-        self.cpt.to_csv(file_path)
+def calc_cp_geometric(model: DTBase, target_node: str, normalized_weights: defaultdict) -> defaultdict:
+    '''
+    Returns a defaultdict with the aggregated weight using geometric mean of a link between two nodes.
+    The result is a map of parent node_id -> weight.
+
+    Parameters
+    ----------
+    model (DTBase) : the DTBase model to quantify.
+    target_node(str) : the node_id of the target node.
+    normalized_weights (defaultdict) : the normalized weights calculated using calc_normalized_weights.
+    '''
+    cp = defaultdict(lambda: np.zeros(sample_size))
+    for parent_id in model.graph.predecessors(target_node):         
+        for edge in model.graph.get_edge_data(parent_id, target_node).values():
+            link = model.get_link(edge['link_id'])
+            cp[parent_id] *= link.m2.sample ** normalized_weights[link.link_id]
+    return cp
+
+def calc_noisy_or(aggregated_cp: defaultdict, parent_ids: tuple) -> np.array:
+    '''
+    Returns the noisy or approximating for P(target_node | parents).
+
+    Parameters
+    ----------
+    aggregated_cp (DTBase) : the aggregated conditional probability map calculated using one of the aggregation methods.
+    parent_ids (tuple) : a tuple of all the parents in a given combination.
+    '''
+    prod = np.ones(sample_size)
+    for parent_id in parent_ids:
+        prod *= np.ones(sample_size) - aggregated_cp[parent_id]
+    return 1 - prod
+
+def export_cpt( output: defaultdict, file_path: str):
+    '''
+    Exports the cpt to a csv file.
+    '''
+    with open(file_path, 'w') as f:
+        writer = csv.writer(file_path)
+        for combo, val in output:
+            writer.writerow(combo, *val)

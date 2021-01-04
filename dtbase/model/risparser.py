@@ -45,6 +45,6 @@ class risparser:
                 if i >= len(self.ids):
                     raise ValueError('The length of the ref_id list provided \
                         must match the number of entries in [{ris_file}].')
-                out.append(reference(self.ids[i], title_, year_ , str(authors_), type_, publisher_))
+                out.append(Reference(self.ids[i], title_, year_ , str(authors_), type_, publisher_))
                 i += 1
         return out

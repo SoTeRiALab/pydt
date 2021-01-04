@@ -6,7 +6,7 @@ import tempfile
 from .link import Link
 from .node import Node
 from .reference import Reference
-from .uncertainty import Estimate, EstimateTypes
+from .estimate import Estimate, EstimateTypes
 
 class db:
     '''
@@ -14,15 +14,20 @@ class db:
 
     Attributes
     ----------
-
+    file_path (str) : the file path to write the database to.
     con (sqlite3.Connection) : sqlite3 Connection object to connect to the database.
     cursor (sqlite3.Cursor) : sqlite3 Curor object to manipulate the database.
     '''
-    def __init__(self):
+    def __init__(self, file_path: str):
         '''
         Constructs a db instance and connects to the database in memory.
+
+        Parameters
+        ----------
+        file_path (str) : the file path to write the db file to.
         '''
-        self.con = sqlite3.connect(':memory')
+        self.file_path = Path(file_path)
+        self.con = sqlite3.connect(self.file_path)
         self.cursor = self.con.cursor()
         self.create_tables()
 
@@ -49,15 +54,12 @@ class db:
                                     m1_type text not null,
                                     m1_a real not null,
                                     m1_b real not null,
-                                    m1_sample_size real not null,
                                     m2_type text not null,
                                     m2_a real not null,
                                     m2_b real not null,
-                                    m2_sample_size real not null,
                                     m3_type text not null,
                                     m3_a real not null,
                                     m3_b real not null,
-                                    m3_sample_size real not null,
                                     m1_memo text,
                                     m2_memo text, 
                                     m3_memo text, 
@@ -125,7 +127,7 @@ class db:
         link (Link) : the Link object to add to the database.
         '''
         self.cursor.execute('')
-        self.cursor.execute('insert into links values (?, ?, ?, ?, ?, ?, ?,\
+        self.cursor.execute('insert into links values (?, ?, ?, ?,\
             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', link.to_tuple())
         self.con.commit()
 
@@ -152,10 +154,10 @@ class db:
             (link_id,)).fetchone()
         if not link_tup:
             return None
-        m1 = Estimate(EstimateTypes(link_tup[3]), *link_tup[4:7])
-        m2 = Estimate(EstimateTypes(link_tup[7]), *link_tup[8:11])
-        m3 = Estimate(EstimateTypes(link_tup[11]), *link_tup[12:15])
-        return Link(*link_tup[0:3], m1, m2, m3, *link_tup[15:])
+        m1 = Estimate(EstimateTypes(link_tup[3]), link_tup[4], link_tup[5])
+        m2 = Estimate(EstimateTypes(link_tup[6]), link_tup[7], link_tup[8])
+        m3 = Estimate(EstimateTypes(link_tup[9]), link_tup[10], link_tup[11])
+        return Link(*link_tup[0:3], m1, m2, m3, *link_tup[12:])
 
     def add_reference(self, reference: Reference) -> None:
         '''
@@ -219,19 +221,20 @@ class db:
         '''
         with open(tmp_path.joinpath('nodes.csv'), 'w') as f:
             writer = csv.writer(f)
-            nodes = self.cursor('select * from nodes').fetchall()
+            nodes = self.cursor.execute('select * from nodes').fetchall()
             for node in nodes:
                 writer.writerow(node)
         with open(tmp_path.joinpath('links.csv'), 'w') as f:
             writer = csv.writer(f)
-            links = self.cursor('select * from links').fetchall()
+            links = self.cursor.execute('select * from links').fetchall()
             for link in links:
                 writer.writerow(link)
         with open(tmp_path.joinpath('references.csv'), 'w') as f:
             writer = csv.writer(f)
-            refs = self.cursor('select * from sources').fetchall()
+            refs = self.cursor.execute('select * from sources').fetchall()
             for ref in refs:
                 writer.writerow(ref)
+        shutil.copyfile(self.file_path, tmp_path.joinpath(self.file_path.name))
 
     def clear(self):
         '''
