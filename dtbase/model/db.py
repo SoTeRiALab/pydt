@@ -1,22 +1,23 @@
 import csv
 from pathlib import Path
-from .reference import reference
-from .node import node
-from .link import link
-from .reference import reference
+from .reference import Reference
+from .node import Node
+from .link import Link
+from .uncertainty import Estimate
 import shutil
+import sqlite3
 import tempfile
 
 class db:
-    def __init__(self, file_path: str):
-        self.con = sqlite3.connect(file_path)
+    def __init__(self):
+        self.con = sqlite3.connect(':memory')
         self.cursor = self.con.cursor()
         self.create_tables()
 
     def create_tables(self):
         self.cursor.execute('''create table if not exists nodes(
                                     node_id text primary key,
-                                    name text not null, 
+                                    name text, 
                                     keywords text)''')
         self.cursor.execute('''create table if not exists sources(
                                     ref_id text primary key, 
@@ -29,9 +30,15 @@ class db:
                                     link_id text primary key,
                                     parent_id text not null, 
                                     child_id text not null,
-                                    m1 real not null,
-                                    m2 real not null,
-                                    m3 real not null,
+                                    m1_a real not null,
+                                    m1_b real not null,
+                                    m1_sample_size real not null,
+                                    m2_a real not null,
+                                    m2_b real not null,
+                                    m2_sample_size real not null,
+                                    m3_a real not null,
+                                    m3_b real not null,
+                                    m3_sample_size real not null,
                                     m1_memo text,
                                     m2_memo text, 
                                     m3_memo text, 
@@ -43,22 +50,14 @@ class db:
                                     unique(link_id),
                                     unique(link_id, edge_key),
                                     unique(parent_id, child_id))''')
-        self.cursor.execute('''create table if not exists estimates(
-                                    type text not null,
-                                    a real not null,
-                                    b real not null, 
-                                    sample_size integer not null,
-                                    seed integer,
-                                    confidence_level real,
-                                    )''')
         self.con.commit()
             
     def __del__(self):
         self.con.close()
 
-    def add_node(self, node: node):
+    def add_node(self, node: Node):
         self.cursor.execute('insert into nodes values (?, ?, ?)', 
-            node.__tuple__())
+            node.to_tuple())
         self.con.commit()
 
     def remove_node(self, node_id: str):
@@ -72,12 +71,12 @@ class db:
             (node_id,)).fetchone()
         if not node_tup:
             return None
-        return node(*node_tup)
+        return Node(*node_tup)
 
-    def add_link(self, link: link):
+    def add_link(self, link: Link):
         self.cursor.execute('')
         self.cursor.execute('insert into links values (?, ?, ?, ?,\
-            ?, ?, ?, ?, ?, ?, ?)', link.__tuple__())
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', link.to_tuple())
         self.con.commit()
 
     def remove_link(self, link_id: str):
@@ -89,11 +88,15 @@ class db:
             (link_id,)).fetchone()
         if not link_tup:
             return None
-        return link(*link_tup)
+        m1 = Estimate(*link_tup[3:6])
+        m2 = Estimate(*link_tup[6:9])
+        m3 = Estimate(*link_tup[9:12])
+        print(*link_tup[0:3], m1, m2, m3, *link_tup[12:])
+        return Link(*link_tup[0:3], m1, m2, m3, *link_tup[12:])
 
-    def add_reference(self, reference: reference):
+    def add_reference(self, reference: Reference):
         self.cursor.execute('insert into sources values(?, ?, ?, ?, ?, ?)', 
-            reference.__tuple__())
+            reference.to_tuple())
         self.con.commit()
 
     def remove_reference(self, ref_id: str):
@@ -106,7 +109,7 @@ class db:
             (ref_id,)).fetchone()
         if not ref_tup:
             return None
-        return reference(*ref_tup)
+        return Reference(*ref_tup)
 
     def nodes(self) -> set:
         return { tup[0] for tup in self.cursor.execute('select node_id from nodes').fetchall() }

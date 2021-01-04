@@ -1,6 +1,6 @@
-class reference:
+class Reference:
     """
-    Object representing a reference in the DT-BASE model.
+    Object representing a Reference in the DT-BASE model.
     """
     def __init__(self, ref_id:str, title: str, year: str = None, authors: list = None,
         publication_type: str = None, publisher: str = None):
@@ -27,17 +27,8 @@ class reference:
         self.publication_type = publication_type
         self.publisher = publisher
     
-    def __dict__(self):
-        return {
-            'title': self.title,
-            'year': self.year,
-            'authors': self.authors,
-            'publication_type': self.publication_type,
-            'publisher': self.publisher
-        }
-
-    def __str__(self):
-        return str(self.__dict__)
+    def to_tuple(self):
+        return (self.title, self.year, self.authors, self.publication_type, self.publisher)
 
     def __hash__(self):
         return hash((self.title, self.authors))

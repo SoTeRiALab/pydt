@@ -1,4 +1,4 @@
-from .reference import reference
+from .reference import Reference
 from RISparser import readris
 
 class risparser:

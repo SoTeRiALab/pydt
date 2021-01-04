@@ -1,5 +1,6 @@
 import csv
 import dtbase.model as model
+import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
 from pathlib import Path
@@ -7,9 +8,11 @@ import tempfile
 import shutil
 
 class dtbasemodel:
-    def __init__(self, file_path: str):
+    def __init__(self, seed: int=None):
+        if seed:
+            np.random.seed(seed)
         self.graph = nx.MultiDiGraph()
-        self.db = model.db(file_path)
+        self.db = model.db()
         self.build_graph()
 
     def build_graph(self):
@@ -24,18 +27,18 @@ class dtbasemodel:
         nx.draw_spring(self.graph, with_labels=True, node_size=750)
         plt.savefig(file_path)
 
-    def add_node(self, node: model.node) -> None:
+    def add_node(self, node: model.Node) -> None:
         if self.db.get_node(node.node_id):
             raise ValueError(f'[{node.node_id}] already exists in the model.')
-        elif not isinstance(node, model.node):
+        elif not isinstance(node, model.Node):
             raise TypeError(f'expected [dtbase.node], found [{type(node)}]')
         self.db.add_node(node=node)
         self.graph.add_node(node.node_id)
     
-    def add_link(self, link: model.link) -> None:
+    def add_link(self, link: model.Link) -> None:
         if self.db.get_link(link.link_id):
             raise ValueError(f'[{link.link_id}] already exists in the model.')
-        elif not isinstance(link, model.link):
+        elif not isinstance(link, model.Link):
             raise TypeError(f'expected [dtbase.link], found [{type(link)}]')
         elif not self.get_node(link.child_id):
             raise ValueError(f'Node [{link.child_id}] does not exist in the model.')
@@ -45,26 +48,26 @@ class dtbasemodel:
         self.graph.add_edge(link.parent_id, link.child_id, key=link.edge_key, link_id=link.link_id)
         self.db.add_link(link)
     
-    def add_reference(self, reference: model.reference) -> None:
+    def add_reference(self, reference: model.Reference) -> None:
         if self.db.get_reference(reference.ref_id):
             raise ValueError(f'[{reference.ref_id}] already exists in the model..')
-        elif not isinstance(reference, model.reference):
+        elif not isinstance(reference, model.Reference):
             raise TypeError(f'link expected [dtbase.reference], found [{type(reference)}]')
         self.db.add_reference(reference)
 
-    def get_node(self, node_id: str) -> model.node:
+    def get_node(self, node_id: str) -> model.Node:
         node = self.db.get_node(node_id)
         if not node:
             raise KeyError(f'Node [{node_id}] does not exist in the model.')
         return node
 
-    def get_link(self, link_id: str) -> model.link:
+    def get_link(self, link_id: str) -> model.Link:
         link = self.db.get_link(link_id)
         if not link:
             raise KeyError(f'Link [{link_id}] does not exist in the model.')
         return link
 
-    def get_reference(self, ref_id: str) -> model.reference:
+    def get_reference(self, ref_id: str) -> model.Reference:
         ref = self.db.get_reference(ref_id)
         if not ref:
             raise KeyError(f'Reference [{ref_id}] does not exist in the model.')
