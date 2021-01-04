@@ -1,20 +1,30 @@
 import csv
 from pathlib import Path
-from .reference import Reference
-from .node import Node
-from .link import Link
-from .uncertainty import Estimate
 import shutil
 import sqlite3
 import tempfile
+from .link import Link
+from .node import Node
+from .reference import Reference
+from .uncertainty import Estimate, EstimateTypes
 
 class db:
+    '''
+    Handles database operations for the model.
+    '''
     def __init__(self):
+        '''
+        Constructs a db instance and connects to the database in memory.
+        '''
         self.con = sqlite3.connect(':memory')
         self.cursor = self.con.cursor()
         self.create_tables()
 
-    def create_tables(self):
+    def create_tables(self) -> None:
+        '''
+        Creates the nodes, sources, and links database tables if they have not
+        yet been created.
+        '''
         self.cursor.execute('''create table if not exists nodes(
                                     node_id text primary key,
                                     name text, 
@@ -30,12 +40,15 @@ class db:
                                     link_id text primary key,
                                     parent_id text not null, 
                                     child_id text not null,
+                                    m1_type text not null,
                                     m1_a real not null,
                                     m1_b real not null,
                                     m1_sample_size real not null,
+                                    m2_type text not null,
                                     m2_a real not null,
                                     m2_b real not null,
                                     m2_sample_size real not null,
+                                    m3_type text not null,
                                     m3_a real not null,
                                     m3_b real not null,
                                     m3_sample_size real not null,
@@ -53,58 +66,123 @@ class db:
         self.con.commit()
             
     def __del__(self):
+        '''
+        Closes the database connection on deletion of the object.
+        '''
         self.con.close()
 
-    def add_node(self, node: Node):
+    def add_node(self, node: Node) -> None:
+        '''
+        Adds a node to the database.
+
+        Parameters
+        ----------
+        node (Node) : a Node object to be added to the database.
+        '''
         self.cursor.execute('insert into nodes values (?, ?, ?)', 
             node.to_tuple())
         self.con.commit()
 
-    def remove_node(self, node_id: str):
+    def remove_node(self, node_id: str) -> None:
+        '''
+        Removes a Node with a given id and all adjacent Links from the database.
+
+        Parameters
+        ----------
+        node_id (str) : the id of the Node to remove.
+        '''
         self.cursor.execute('delete from nodes where node_id = ?', (node_id,))
         self.cursor.execute('delete from links where child_id = ? or parent_id = ?', 
             (node_id, node_id))
         self.con.commit()
 
-    def get_node(self, node_id: str):
+    def get_node(self, node_id: str) -> Node:
+        '''
+        Returns the Node object with the given node_id from the database.
+
+        Parameters
+        ----------
+        node_id (str) : the id of the Node to retrieve.
+        '''
         node_tup = self.cursor.execute('select * from nodes where node_id = ?', 
             (node_id,)).fetchone()
         if not node_tup:
             return None
         return Node(*node_tup)
 
-    def add_link(self, link: Link):
+    def add_link(self, link: Link) -> None:
+        '''
+        Adds a Link between two Nodes to the database.
+
+        Parameters
+        ----------
+        link (Link) : the Link object to add to the database.
+        '''
         self.cursor.execute('')
-        self.cursor.execute('insert into links values (?, ?, ?, ?,\
+        self.cursor.execute('insert into links values (?, ?, ?, ?, ?, ?, ?,\
             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', link.to_tuple())
         self.con.commit()
 
-    def remove_link(self, link_id: str):
+    def remove_link(self, link_id: str) -> None:
+        '''
+        Removes a link with the given link_id from the database.
+
+        Parameters
+        ----------
+        link_id (str) : removes the link with id link_id from the database.
+        '''
         self.cursor.execute('delete from links where link_id = ?', (link_id,))
         self.con.commit()
 
-    def get_link(self, link_id: str):
+    def get_link(self, link_id: str) -> Link:
+        '''
+        Returns the Link object with the given link_id from the database.
+
+        Parameters
+        ----------
+        link_id (str) : the id of the Link to retrieve.
+        '''
         link_tup = self.cursor.execute('select * from links where link_id = ?', 
             (link_id,)).fetchone()
         if not link_tup:
             return None
-        m1 = Estimate(*link_tup[3:6])
-        m2 = Estimate(*link_tup[6:9])
-        m3 = Estimate(*link_tup[9:12])
-        print(*link_tup[0:3], m1, m2, m3, *link_tup[12:])
-        return Link(*link_tup[0:3], m1, m2, m3, *link_tup[12:])
+        m1 = Estimate(EstimateTypes(link_tup[3]), *link_tup[4:7])
+        m2 = Estimate(EstimateTypes(link_tup[7]), *link_tup[8:11])
+        m3 = Estimate(EstimateTypes(link_tup[11]), *link_tup[12:15])
+        return Link(*link_tup[0:3], m1, m2, m3, *link_tup[15:])
 
-    def add_reference(self, reference: Reference):
+    def add_reference(self, reference: Reference) -> None:
+        '''
+        Adds a Reference to the database.
+
+        Parameters
+        ----------
+        reference (Reference) : the Reference to add to the database.
+        '''
         self.cursor.execute('insert into sources values(?, ?, ?, ?, ?, ?)', 
             reference.to_tuple())
         self.con.commit()
 
-    def remove_reference(self, ref_id: str):
+    def remove_reference(self, ref_id: str) -> None:
+        '''
+        Removes a Reference with the given ref_id from the database.
+
+        Parameters
+        ----------
+        ref_id (str) : the ref_id of the Reference to remove from the database.
+        '''
         self.cursor.execute('delete from sources where ref_id = ?', (ref_id,))
         self.cursor.execute('delete from links where ref_id = ?', (ref_id,))
         self.con.commit()
 
-    def get_reference(self, ref_id: str):
+    def get_reference(self, ref_id: str) -> Reference:
+        '''
+        Returns the Reference with the given ref_id from the database.
+
+        Parameters
+        ----------
+        reference (Reference) : the ref_id of the Reference to retrieve from the database.
+        '''
         ref_tup = self.cursor.execute('select * from sources where ref_id = ?', 
             (ref_id,)).fetchone()
         if not ref_tup:
@@ -112,15 +190,27 @@ class db:
         return Reference(*ref_tup)
 
     def nodes(self) -> set:
+        '''
+        Returns the set of all node_ids in the database.
+        '''
         return { tup[0] for tup in self.cursor.execute('select node_id from nodes').fetchall() }
 
     def links(self) -> set:
+        '''
+        Returns the set of all link_ids in the database.
+        '''
         return { tup[0] for tup in self.cursor.execute('select link_id from links').fetchall() }
   
     def references(self) -> set:
+        '''
+        Returns the set of all ref_ids in the database.
+        '''
         return { tup[0] for tup in self.cursor.execute('select ref_id from sources').fetchall() }
 
     def export_data_files(self, tmp_path: Path):
+        '''
+        Writes the model data files to .csv files in the tmp_path folder.
+        '''
         with open(tmp_path.joinpath('nodes.csv'), 'w') as f:
             writer = csv.writer(f)
             nodes = self.cursor('select * from nodes').fetchall()
@@ -138,6 +228,9 @@ class db:
                 writer.writerow(ref)
 
     def clear(self):
+        '''
+        Clears the database of all Nodes, Links and References.
+        '''
         self.cursor.execute('drop table if exists nodes')
         self.cursor.execute('drop table if exists links')
         self.cursor.execute('drop table if exists sources')
