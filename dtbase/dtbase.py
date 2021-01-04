@@ -1,6 +1,10 @@
+import csv
 import dtbase.model as model
 import matplotlib.pyplot as plt
 import networkx as nx
+from pathlib import Path
+import tempfile
+import shutil
 
 class dtbasemodel:
     def __init__(self, file_path: str):
@@ -100,14 +104,11 @@ class dtbasemodel:
         self.db.clear()
         self.graph.clear()
 
-    def cpt(self, target_id: str):
-        pass
-
-    def quantify(self):
-        pass
-
     def export_model(self, file_path: str) -> None:
         if not file_path.endswith('.tar.gz') and not file_path.endswith('.zip'):
             raise ValueError('The provided file path must be a valid zip, \
                 tar, gztar, bztar, or xztar file')
-        self.db.export_data(file_path)
+        tmp_path = Path(tempfile.mkdtemp())
+        self.db.export_data_files(tmp_path)
+        self.draw(tmp_path.joinpath('model.png'))
+        shutil.make_archive(tmp_path, 'zip', file_path, 'root')

@@ -4,7 +4,6 @@ from .reference import reference
 from .node import node
 from .link import link
 from .reference import reference
-import sqlite3
 import shutil
 import tempfile
 
@@ -44,6 +43,14 @@ class db:
                                     unique(link_id),
                                     unique(link_id, edge_key),
                                     unique(parent_id, child_id))''')
+        self.cursor.execute('''create table if not exists estimates(
+                                    type text not null,
+                                    a real not null,
+                                    b real not null, 
+                                    sample_size integer not null,
+                                    seed integer,
+                                    confidence_level real,
+                                    )''')
         self.con.commit()
             
     def __del__(self):
@@ -68,6 +75,7 @@ class db:
         return node(*node_tup)
 
     def add_link(self, link: link):
+        self.cursor.execute('')
         self.cursor.execute('insert into links values (?, ?, ?, ?,\
             ?, ?, ?, ?, ?, ?, ?)', link.__tuple__())
         self.con.commit()
@@ -109,14 +117,22 @@ class db:
     def references(self) -> set:
         return { tup[0] for tup in self.cursor.execute('select ref_id from sources').fetchall() }
 
-    def export_data(self):
-        tmp_path = Path(tempfile.mkdtemp())
+    def export_data_files(self, tmp_path: Path):
         with open(tmp_path.joinpath('nodes.csv'), 'w') as f:
-            writer = csv.writer()
-            self.cursor('select * from nodes')
-            nodes = self.cursor.fetchall()
+            writer = csv.writer(f)
+            nodes = self.cursor('select * from nodes').fetchall()
             for node in nodes:
                 writer.writerow(node)
+        with open(tmp_path.joinpath('links.csv'), 'w') as f:
+            writer = csv.writer(f)
+            links = self.cursor('select * from links').fetchall()
+            for link in links:
+                writer.writerow(link)
+        with open(tmp_path.joinpath('references.csv'), 'w') as f:
+            writer = csv.writer(f)
+            refs = self.cursor('select * from sources').fetchall()
+            for ref in refs:
+                writer.writerow(ref)
 
     def clear(self):
         self.cursor.execute('drop table if exists nodes')
