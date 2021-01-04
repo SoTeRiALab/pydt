@@ -52,7 +52,7 @@ class Link:
                 *self.m1.to_tuple(), *self.m2.to_tuple(), *self.m3.to_tuple(),
                 self.m1_memo, self.m2_memo, self.m3_memo, self.ref_id, self.edge_key)
     
-    def __hash__(self):
+    def __hash__(self) -> int:
         '''
         Returns a hash of a Link based on the parent_id, child_id and edge_key.
         '''

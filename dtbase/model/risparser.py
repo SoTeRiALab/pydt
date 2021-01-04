@@ -2,31 +2,27 @@ from .reference import Reference
 from RISparser import readris
 
 class risparser:
-    """
-    Parses ris files into ref_ objects:
-    """
-    def __init__(self, file_path: str, ids: list):
-        """
-        Constructs the necessary attributes of a risparser.
+    '''
+    Parses ris files into Reference objects:
 
-        Parameters
-        ----------
-            file_path : str
-                the file path of the .RIS file.
-        """
+    Attributes
+    ----------
+    file_path (str) : the file_path of the .ris file to parse
+    ids (list) : a list or tuple of str ids, one unique id for each entry in the .ris file.
+    refs (list) : a list of Reference objects parsed from the file.
+    '''
+    def __init__(self, file_path: str, ids: list):
+        '''
+        Constructs the necessary attributes of a risparser.
+        '''
         self.file_path = file_path
         self.ids = ids
         self.refs = self.parse()
     
     def parse(self) -> list:
-        """
+        '''
         Parses a .RIS file into a list of ref_ objects, one for each entry.
-
-        Returns
-        -------
-            a list of ref_ objects
-        """
-       
+        '''
         out = []
         with open (self.file_path, 'r') as ris:
             entries = readris(ris)
