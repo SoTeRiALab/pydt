@@ -11,6 +11,12 @@ from .uncertainty import Estimate, EstimateTypes
 class db:
     '''
     Handles database operations for the model.
+
+    Attributes
+    ----------
+
+    con (sqlite3.Connection) : sqlite3 Connection object to connect to the database.
+    cursor (sqlite3.Cursor) : sqlite3 Curor object to manipulate the database.
     '''
     def __init__(self):
         '''
