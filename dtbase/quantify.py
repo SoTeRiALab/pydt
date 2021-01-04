@@ -3,7 +3,6 @@ import csv
 from enum import Enum
 from itertools import combinations
 import numpy as np
-from pandas import DataFrame
 from .dtbase import DTBase
 
 # default sample size for the Monte Carlo method
