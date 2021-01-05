@@ -1,4 +1,4 @@
-from .reference import Reference
+from dtbase.model.reference import Reference
 from RISparser import readris
 
 class risparser:

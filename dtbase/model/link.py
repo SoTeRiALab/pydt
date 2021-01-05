@@ -1,4 +1,4 @@
-from .estimate import Estimate
+from dtbase.model.estimate import Estimate
 
 class Link:
     '''

@@ -3,7 +3,7 @@ import csv
 from enum import Enum
 from itertools import combinations
 import numpy as np
-from .dtbase import DTBase
+from dtbase.graph import Model
 
 # default sample size for the Monte Carlo method
 sample_size = int(1e5)
@@ -15,7 +15,7 @@ class AggregationMethod(Enum):
     ARITHMETIC=0,
     GEOMETRIC=1
 
-def calculate(model: DTBase, target_node: str, ag_method: AggregationMethod) -> defaultdict:
+def calculate(model: Model, target_node: str, ag_method: AggregationMethod) -> defaultdict:
     '''
     Returns a defaultdict representing the conditional probability table for a target_node.
     Each key in the defaultdict is a tuple of parent nodes.
@@ -40,7 +40,7 @@ def calculate(model: DTBase, target_node: str, ag_method: AggregationMethod) -> 
             cpt[combo] = (np.mean(c), np.std(c))
     return cpt
 
-def calc_normalized_weights(model: DTBase, target_node: str) -> defaultdict:
+def calc_normalized_weights(model: Model, target_node: str) -> defaultdict:
     '''
     Returns a defaultdict with the normalized weights for each link pointing to the target node.
     The result is a map of link_id -> weight.
@@ -64,7 +64,7 @@ def calc_normalized_weights(model: DTBase, target_node: str) -> defaultdict:
             weights[link.link_id] = (link.m1.sample * link.m3.sample) / Z[link.parent_id]
     return weights
 
-def calc_cp_arithmetic(model: DTBase, target_node: str, normalized_weights: defaultdict) -> defaultdict:
+def calc_cp_arithmetic(model: Model, target_node: str, normalized_weights: defaultdict) -> defaultdict:
     '''
     Returns a defaultdict with the aggregated weight using arithmetic mean of a link between two nodes.
     The result is a map of parent node_id -> weight.
@@ -82,7 +82,7 @@ def calc_cp_arithmetic(model: DTBase, target_node: str, normalized_weights: defa
             cp[parent_id] += normalized_weights[link.link_id] * link.m2.sample
     return cp
 
-def calc_cp_geometric(model: DTBase, target_node: str, normalized_weights: defaultdict) -> defaultdict:
+def calc_cp_geometric(model: Model, target_node: str, normalized_weights: defaultdict) -> defaultdict:
     '''
     Returns a defaultdict with the aggregated weight using geometric mean of a link between two nodes.
     The result is a map of parent node_id -> weight.
