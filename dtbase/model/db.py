@@ -69,8 +69,7 @@ class db:
                                     foreign key(child_id) references nodes(node_id),
                                     foreign key(ref_id) references sources(ref_id),
                                     unique(link_id),
-                                    unique(link_id, edge_key),
-                                    unique(parent_id, child_id))''')
+                                    unique(parent_id, child_id, edge_key))''')
         self.con.commit()
             
     def __del__(self):

@@ -15,7 +15,7 @@ class DTBase:
     graph (nx.MultiDiGraph) : a directed acyclic graph representing the causal model.
     db (model.db) : a db object to access and modify the database.
     '''
-    def __init__(self, file_path: str, ):
+    def __init__(self, file_path: str=None):
         '''
         Constructs a DTBase model object.
 
@@ -24,6 +24,8 @@ class DTBase:
         file_path (str) : a file path for the database file.
         '''
         self.graph = nx.MultiDiGraph()
+        if not file_path:
+            file_path = ':memory'
         self.db = model.db(file_path)
         self.build_graph()
 
@@ -38,16 +40,11 @@ class DTBase:
             link = self.get_link(link_id)
             self.graph.add_edge(link.parent_id, link.child_id, key=link.edge_key, link_id=link.link_id)
 
-    def draw(self, file_path: str) -> None:
+    def draw(self) -> None:
         '''
-        Draws a visual representation of the graph and saves it to a file.
-
-        Parameters
-        ----------
-        file_path (str) : the file path to save the image.
+        Draws a visual representation of the graph.
         '''
         nx.draw_spring(self.graph, with_labels=True, node_size=750)
-        plt.savefig(file_path)
 
     def add_node(self, node: model.Node) -> None:
         '''
@@ -93,6 +90,7 @@ class DTBase:
         reference (model.Reference) : the Reference to add to the model.
         '''
         if self.db.get_reference(reference.ref_id):
+            print(self.db.get_reference(reference.ref_id))
             raise ValueError(f'[{reference.ref_id}] already exists in the model.')
         elif not isinstance(reference, model.Reference):
             raise TypeError(f'link expected [dtbase.reference], found [{type(reference)}]')
@@ -211,5 +209,54 @@ class DTBase:
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir)
             self.db.export_data_files(path)
-            self.draw(path.joinpath(Path('model.png')))
+            self.draw()
+            plt.savefig(path.joinpath(Path('model.png')))
             shutil.make_archive(name, 'zip', path)
+
+    def import_nodes(self, file_path: str) -> None:
+        '''
+        Imports a .csv file of nodes.
+
+        Parameters
+        ----------
+        file_path (str) : a file path that points to a properly formatted .csv file.
+        '''
+        with open (file_path, 'r') as f:
+            reader = csv.reader(f)
+            for node in reader:
+                self.add_node(model.Node(*node))
+
+    def import_refs(self, file_path: str) -> None:
+        '''
+        Imports a .csv file of refs.
+
+        Parameters
+        ----------
+        file_path (str) : a file path that points to a properly formatted .csv file.
+        '''
+        with open (file_path, 'r') as f:
+            reader = csv.reader(f)
+            for node in reader:
+                try:
+                    self.add_reference(model.Reference(*node))
+                except KeyError:
+                    continue
+
+    def import_links(self, file_path: str) -> None:
+        '''
+        Imports a .csv file of links.
+
+        Parameters
+        ----------
+        file_path (str) : a file path that points to a properly formatted .csv file.
+        '''
+        with open (file_path, 'r') as f:
+            reader = csv.reader(f)
+            for link in reader:
+                # read estimates
+                i = 3
+                m = []
+                while i < 12:
+                    m.append(model.Estimate(model.EstimateTypes(link[i]), float(link[i + 1]), float(link[i + 2])))
+                    i += 3
+                self.add_link(model.Link(*link[0:3], *m, *link[12:]))

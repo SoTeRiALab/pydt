@@ -58,9 +58,10 @@ def calc_normalized_weights(model: DTBase, target_node: str) -> defaultdict:
             Z[parent_id] += link.m1.sample * link.m3.sample
             links.add(link)
     weights = defaultdict(lambda: np.zeros(sample_size))
-    for link_id in model.links():
-        link = model.get_link(link_id)
-        weights[link_id] = (link.m1.sample * link.m3.sample) / Z[link.parent_id]
+    for parent_id in Z:    
+        for edge in model.graph.get_edge_data(parent_id, target_node).values():
+            link = model.get_link(edge['link_id'])
+            weights[link.link_id] = (link.m1.sample * link.m3.sample) / Z[link.parent_id]
     return weights
 
 def calc_cp_arithmetic(model: DTBase, target_node: str, normalized_weights: defaultdict) -> defaultdict:
@@ -112,12 +113,3 @@ def calc_noisy_or(aggregated_cp: defaultdict, parent_ids: tuple) -> np.array:
     for parent_id in parent_ids:
         prod *= np.ones(sample_size) - aggregated_cp[parent_id]
     return 1 - prod
-
-def export_cpt( output: defaultdict, file_path: str):
-    '''
-    Exports the cpt to a csv file.
-    '''
-    with open(file_path, 'w') as f:
-        writer = csv.writer(file_path)
-        for combo, val in output:
-            writer.writerow(combo, *val)

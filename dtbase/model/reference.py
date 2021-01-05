@@ -16,6 +16,7 @@ class Reference:
         Constructs a ref object representing a single reference for a causal link.
         '''
         assert title, 'A valid title must be provided'
+        self.ref_id = ref_id
         self.title = title
         self.year = year
         self.authors = authors
@@ -26,7 +27,7 @@ class Reference:
         '''
         Returns a tuple representation of a Reference.
         '''
-        return (self.title, self.year, self.authors, self.publication_type, self.publisher)
+        return (self.ref_id, self.title, self.year, self.authors, self.publication_type, self.publisher)
 
     def __hash__(self) -> int:
         '''
